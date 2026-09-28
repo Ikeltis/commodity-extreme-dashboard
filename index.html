@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="description" content="大宗商品相对价值与极值研究看板">
+    <title>Commodity Extreme Scanner</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">RESEARCH MONITOR</p>
+        <h1>Commodity Extreme Scanner</h1>
+      </div>
+      <div class="as-of">
+        <span>数据日期</span>
+        <strong id="analysis-date">--</strong>
+      </div>
+    </header>
+
+    <main>
+      <section class="status-band" aria-label="扫描摘要">
+        <button class="metric" type="button" data-filter="robust_candidate">
+          <span>Robust</span><strong id="robust-count">--</strong>
+        </button>
+        <button class="metric" type="button" data-filter="watchlist">
+          <span>Watchlist</span><strong id="watchlist-count">--</strong>
+        </button>
+        <button class="metric" type="button" data-filter="fdr">
+          <span>FDR 通过</span><strong id="fdr-count">--</strong>
+        </button>
+        <div class="metric static">
+          <span>数据质量拒绝</span><strong id="reject-count">--</strong>
+        </div>
+        <div class="source-status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="source-status">等待数据</span>
+        </div>
+      </section>
+
+      <section class="toolbar" aria-label="结果筛选">
+        <div class="segments" role="group" aria-label="分类筛选">
+          <button type="button" class="segment active" data-filter="all">全部</button>
+          <button type="button" class="segment" data-filter="robust_candidate">Robust</button>
+          <button type="button" class="segment" data-filter="watchlist">Watchlist</button>
+          <button type="button" class="segment" data-filter="fdr">FDR</button>
+        </div>
+        <label class="search">
+          <span class="sr-only">搜索关系</span>
+          <input id="search" type="search" placeholder="搜索关系" autocomplete="off">
+        </label>
+      </section>
+
+      <section class="workspace">
+        <div class="table-region">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col"><button type="button" data-sort="name">关系</button></th>
+                  <th scope="col"><button type="button" data-sort="current_value">当前值</button></th>
+                  <th scope="col"><button type="button" data-sort="direction">方向</button></th>
+                  <th scope="col"><button type="button" data-sort="daily_10y_percentile">10年分位</button></th>
+                  <th scope="col"><button type="button" data-sort="daily_10y_robust_zscore">稳健 Z</button></th>
+                  <th scope="col"><button type="button" data-sort="classification">分类</button></th>
+                  <th scope="col"><button type="button" data-sort="fdr">FDR</button></th>
+                </tr>
+              </thead>
+              <tbody id="results-body"></tbody>
+            </table>
+          </div>
+          <p id="empty-state" class="empty" hidden>没有符合当前条件的关系。</p>
+        </div>
+
+        <aside id="detail-panel" class="detail-panel" aria-live="polite">
+          <div class="detail-heading">
+            <div>
+              <p id="detail-group" class="eyebrow">--</p>
+              <h2 id="detail-name">选择一个关系</h2>
+            </div>
+            <span id="detail-badge" class="badge neutral">--</span>
+          </div>
+
+          <div class="detail-values">
+            <div><span>当前值</span><strong id="detail-value">--</strong></div>
+            <div><span>10 年分位</span><strong id="detail-percentile">--</strong></div>
+            <div><span>稳健 Z</span><strong id="detail-zscore">--</strong></div>
+            <div><span>核心确认</span><strong id="detail-confirmations">--</strong></div>
+          </div>
+
+          <section class="chart-section">
+            <div class="section-heading">
+              <h3>10 年周频走势</h3><span id="history-range">--</span>
+            </div>
+            <canvas id="history-chart" width="720" height="260" aria-label="历史走势"></canvas>
+          </section>
+
+          <section class="chart-section">
+            <div class="section-heading">
+              <h3>历史分布</h3><span id="distribution-note">--</span>
+            </div>
+            <canvas id="distribution-chart" width="720" height="190" aria-label="历史分布"></canvas>
+          </section>
+
+          <section class="matrix-section">
+            <div class="section-heading">
+              <h3>多窗口确认</h3><span>分位 / Z</span>
+            </div>
+            <div id="metric-matrix" class="metric-matrix"></div>
+          </section>
+
+          <section class="evidence-section">
+            <div class="section-heading"><h3>事件研究</h3></div>
+            <dl>
+              <div><dt>可推断检验</dt><dd id="eligible-tests">--</dd></div>
+              <div><dt>最佳 q 值</dt><dd id="best-q">--</dd></div>
+              <div><dt>FDR 通过</dt><dd id="relationship-fdr">--</dd></div>
+            </dl>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <footer>
+      <span>Research only · 历史分位不是预测概率</span>
+      <span id="generated-at">--</span>
+    </footer>
+    <script src="app.js" defer></script>
+  </body>
+</html>

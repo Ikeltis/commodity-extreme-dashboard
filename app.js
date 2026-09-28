@@ -7,6 +7,7 @@ const state = {
   sort: "classification",
   ascending: true,
   selectedId: null,
+  view: "ranking",
 };
 
 const labels = {
@@ -20,6 +21,10 @@ const labels = {
   agriculture_relative_value: "农业相对价值",
   cross_asset_overlay: "跨资产参照",
   rates_reference: "利率参照",
+  pair_within_sector: "同板块状态背离",
+  pair_cross_sector: "跨板块状态背离",
+  pair_cross_asset: "跨资产状态背离",
+  pair_macro_overlay: "宏观状态背离",
 };
 
 const classOrder = {
@@ -45,6 +50,7 @@ function valueText(item) {
   if (item.current_value === null || item.current_value === undefined) return "--";
   if (item.id === "us10y_nominal_yield_extreme") return `${number(item.current_value, 2)}%`;
   if (item.kind === "log_ratio") return number(item.current_value, valueDigits(item.current_value));
+  if (item.kind === "state_divergence") return `${number(item.current_value, 2)} q`;
   return number(item.current_value, Math.abs(item.current_value) < 10 ? 3 : 2);
 }
 
@@ -96,8 +102,8 @@ function renderTable() {
       <td><span class="relationship-name">${item.name}</span><span class="relationship-group">${labels[item.ranking_group] || item.ranking_group}</span></td>
       <td>${valueText(item)}</td>
       <td>${directionText(item.direction)}</td>
-      <td>${number(item.daily_10y_percentile, 2)}%</td>
-      <td>${number(item.daily_10y_robust_zscore, 2)}</td>
+      <td>${number(item.primary_10y_percentile, 2)}%</td>
+      <td>${number(item.primary_10y_robust_zscore, 2)}</td>
       <td>${classificationBadge(item)}</td>
       <td>${item.event_study.fdr_pass_tests > 0 ? '<span class="badge pass">通过</span>' : '<span class="badge neutral">未通过</span>'}</td>
     </tr>`).join("");
@@ -206,7 +212,7 @@ function drawDistribution(item) {
   ctx.textAlign = "right"; ctx.fillText(number(max, valueDigits(max)), width - pad.right, height - 8);
 }
 
-function renderMatrix(item) {
+function renderMetricMatrix(item) {
   const matrix = document.getElementById("metric-matrix");
   const cells = ['<div class="matrix-cell header"></div>', ...[3, 5, 10].map((year) => `<div class="matrix-cell header">${year} 年</div>` )];
   ["daily", "weekly"].forEach((frequency) => {
@@ -221,6 +227,57 @@ function renderMatrix(item) {
   matrix.innerHTML = cells.join("");
 }
 
+function pairCellColor(zscore) {
+  if (zscore === null || zscore === undefined) return "#eef1f3";
+  const intensity = Math.min(1, Math.abs(Number(zscore)) / 4);
+  const alpha = 0.12 + intensity * 0.55;
+  return Number(zscore) >= 0 ? `rgba(180, 35, 24, ${alpha})` : `rgba(23, 92, 211, ${alpha})`;
+}
+
+function renderPairMatrix() {
+  const matrix = document.getElementById("pair-matrix");
+  const instruments = state.data.pair_matrix.instruments;
+  const cells = new Map(state.data.pair_matrix.cells.map((cell) => [`${cell.left}|${cell.right}`, cell]));
+  matrix.style.setProperty("--pair-count", instruments.length);
+  const html = ['<div class="pair-axis corner"></div>'];
+  instruments.forEach((instrument) => html.push(`<div class="pair-axis column">${instrument.label}</div>`));
+  instruments.forEach((row, rowIndex) => {
+    html.push(`<div class="pair-axis row">${row.label}</div>`);
+    instruments.forEach((column, columnIndex) => {
+      if (rowIndex === columnIndex) {
+        html.push('<div class="pair-cell diagonal">--</div>');
+        return;
+      }
+      const forward = rowIndex < columnIndex;
+      const key = forward ? `${row.id}|${column.id}` : `${column.id}|${row.id}`;
+      const cell = cells.get(key);
+      if (!cell) {
+        html.push('<div class="pair-cell unavailable">--</div>');
+        return;
+      }
+      const zscore = cell.robust_zscore === null ? null :
+        (forward ? cell.robust_zscore : -cell.robust_zscore);
+      const percentile = cell.percentile === null ? null :
+        (forward ? cell.percentile : 100 - cell.percentile);
+      const item = state.data.relationships.find((relationship) => relationship.id === cell.id);
+      const query = state.query.trim().toLowerCase();
+      const filterMatch = state.filter === "all" || cell.classification === state.filter ||
+        (state.filter === "fdr" && cell.fdr_pass_tests > 0);
+      const queryMatch = !query || item.name.toLowerCase().includes(query) ||
+        row.label.toLowerCase().includes(query) || column.label.toLowerCase().includes(query);
+      const marker = cell.fdr_pass_tests > 0 ? "F" : cell.classification === "robust_candidate" ? "R" :
+        cell.classification === "watchlist" ? "W" : "";
+      html.push(`<button type="button" class="pair-cell actionable ${filterMatch && queryMatch ? "" : "dimmed"}" data-id="${cell.id}" style="background:${pairCellColor(zscore)}" title="${row.label} vs ${column.label} · P${number(percentile, 1)} · Z ${number(zscore, 2)}"><strong>${number(zscore, 1)}</strong><span>${marker}</span></button>`);
+    });
+  });
+  matrix.innerHTML = html.join("");
+  matrix.querySelectorAll("button[data-id]").forEach((button) => button.addEventListener("click", () => {
+    setView("ranking");
+    selectRelationship(button.dataset.id);
+    document.getElementById("detail-panel").scrollIntoView({ block: "start" });
+  }));
+}
+
 function selectRelationship(id) {
   state.selectedId = id;
   const item = state.data.relationships.find((row) => row.id === id);
@@ -229,9 +286,9 @@ function selectRelationship(id) {
   document.getElementById("detail-name").textContent = item.name;
   document.getElementById("detail-badge").outerHTML = classificationBadge(item).replace("<span", '<span id="detail-badge"');
   document.getElementById("detail-value").textContent = valueText(item);
-  document.getElementById("detail-percentile").textContent = `${number(item.daily_10y_percentile, 2)}%`;
-  document.getElementById("detail-zscore").textContent = number(item.daily_10y_robust_zscore, 2);
-  document.getElementById("detail-confirmations").textContent = `${item.cleaned_core_confirmations}/4`;
+  document.getElementById("detail-percentile").textContent = `${number(item.primary_10y_percentile, 2)}%`;
+  document.getElementById("detail-zscore").textContent = number(item.primary_10y_robust_zscore, 2);
+  document.getElementById("detail-confirmations").textContent = `${item.cleaned_core_confirmations}/${item.core_confirmation_target}`;
   document.getElementById("history-range").textContent = item.history.length ? `${item.history[0].date} — ${item.history[item.history.length - 1].date}` : "--";
   document.getElementById("distribution-note").textContent = `P10 ${number(item.distribution.p10, valueDigits(item.distribution.p10))} · P90 ${number(item.distribution.p90, valueDigits(item.distribution.p90))}`;
   document.getElementById("eligible-tests").textContent = item.event_study.eligible_tests;
@@ -239,19 +296,29 @@ function selectRelationship(id) {
   document.getElementById("relationship-fdr").textContent = item.event_study.fdr_pass_tests > 0 ? "通过" : "未通过";
   drawHistory(item);
   drawDistribution(item);
-  renderMatrix(item);
+  renderMetricMatrix(item);
   renderTable();
 }
 
 function setFilter(filter) {
   state.filter = filter;
-  document.querySelectorAll(".segment").forEach((button) => button.classList.toggle("active", button.dataset.filter === filter));
+  document.querySelectorAll("[data-filter]").forEach((button) => button.classList.toggle("active", button.dataset.filter === filter));
   renderTable();
+  renderPairMatrix();
+}
+
+function setView(view) {
+  state.view = view;
+  document.getElementById("ranking-view").hidden = view !== "ranking";
+  document.getElementById("pair-matrix-view").hidden = view !== "matrix";
+  document.querySelectorAll("[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+  if (view === "matrix") renderPairMatrix();
 }
 
 function wireControls() {
   document.querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => setFilter(button.dataset.filter)));
-  document.getElementById("search").addEventListener("input", (event) => { state.query = event.target.value; renderTable(); });
+  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
+  document.getElementById("search").addEventListener("input", (event) => { state.query = event.target.value; renderTable(); renderPairMatrix(); });
   document.querySelectorAll("th button[data-sort]").forEach((button) => button.addEventListener("click", () => {
     if (state.sort === button.dataset.sort) state.ascending = !state.ascending;
     else { state.sort = button.dataset.sort; state.ascending = true; }
@@ -267,16 +334,18 @@ async function init() {
     const response = await fetch("data/dashboard.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.data = await response.json();
-    if (state.data.schema_version !== 2) throw new Error("不支持的数据版本");
+    if (state.data.schema_version !== 3) throw new Error("不支持的数据版本");
     const summary = state.data.summary;
     document.getElementById("analysis-date").textContent = state.data.analysis_as_of;
     document.getElementById("robust-count").textContent = summary.robust_candidates;
     document.getElementById("watchlist-count").textContent = summary.watchlist;
     document.getElementById("fdr-count").textContent = summary.fdr_pass_tests;
     document.getElementById("reject-count").textContent = summary.data_quality_rejects;
-    document.getElementById("source-status").textContent = `${state.data.sources.map((item) => item.provider.toUpperCase()).join(" + ")} · ${summary.relationships} 个关系`;
+    document.getElementById("source-status").textContent = `${state.data.sources.map((item) => item.provider.toUpperCase()).join(" + ")} · ${summary.generated_pairs} 组两两对比`;
+    document.getElementById("pair-count").textContent = `${summary.generated_pairs} 组 · 10 年主频稳健 Z`;
     document.getElementById("generated-at").textContent = `生成于 ${new Date(state.data.generated_at).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}`;
     renderTable();
+    renderPairMatrix();
     if (state.data.relationships.length) selectRelationship(state.data.relationships[0].id);
   } catch (error) {
     document.getElementById("source-status").textContent = `数据加载失败：${error.message}`;

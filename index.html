@@ -44,11 +44,17 @@
       </section>
 
       <section class="toolbar" aria-label="结果筛选">
-        <div class="segments" role="group" aria-label="分类筛选">
-          <button type="button" class="segment active" data-filter="all">全部</button>
-          <button type="button" class="segment" data-filter="robust_candidate">Robust</button>
-          <button type="button" class="segment" data-filter="watchlist">Watchlist</button>
-          <button type="button" class="segment" data-filter="fdr">FDR</button>
+        <div class="toolbar-controls">
+          <div class="segments" role="tablist" aria-label="看板视图">
+            <button type="button" class="segment view-tab active" data-view="ranking">极值排名</button>
+            <button type="button" class="segment view-tab" data-view="matrix">两两矩阵</button>
+          </div>
+          <div class="segments" role="group" aria-label="分类筛选">
+            <button type="button" class="segment active" data-filter="all">全部</button>
+            <button type="button" class="segment" data-filter="robust_candidate">Robust</button>
+            <button type="button" class="segment" data-filter="watchlist">Watchlist</button>
+            <button type="button" class="segment" data-filter="fdr">FDR</button>
+          </div>
         </div>
         <label class="search">
           <span class="sr-only">搜索关系</span>
@@ -56,7 +62,21 @@
         </label>
       </section>
 
-      <section class="workspace">
+      <section id="pair-matrix-view" class="pair-matrix-view" aria-label="标的两两状态背离矩阵" hidden>
+        <div class="matrix-view-heading">
+          <div><h2>两两状态背离</h2><span id="pair-count">--</span></div>
+          <div class="matrix-legend" aria-label="颜色图例">
+            <span><i class="legend-low"></i>左侧偏低</span>
+            <span><i class="legend-neutral"></i>中性</span>
+            <span><i class="legend-high"></i>左侧偏高</span>
+          </div>
+        </div>
+        <div class="pair-matrix-scroll">
+          <div id="pair-matrix" class="pair-matrix"></div>
+        </div>
+      </section>
+
+      <section id="ranking-view" class="workspace">
         <div class="table-region">
           <div class="table-scroll">
             <table>
@@ -65,8 +85,8 @@
                   <th scope="col"><button type="button" data-sort="name">关系</button></th>
                   <th scope="col"><button type="button" data-sort="current_value">当前值</button></th>
                   <th scope="col"><button type="button" data-sort="direction">方向</button></th>
-                  <th scope="col"><button type="button" data-sort="daily_10y_percentile">10年分位</button></th>
-                  <th scope="col"><button type="button" data-sort="daily_10y_robust_zscore">稳健 Z</button></th>
+                  <th scope="col"><button type="button" data-sort="primary_10y_percentile">10年分位</button></th>
+                  <th scope="col"><button type="button" data-sort="primary_10y_robust_zscore">稳健 Z</button></th>
                   <th scope="col"><button type="button" data-sort="classification">分类</button></th>
                   <th scope="col"><button type="button" data-sort="fdr">FDR</button></th>
                 </tr>
